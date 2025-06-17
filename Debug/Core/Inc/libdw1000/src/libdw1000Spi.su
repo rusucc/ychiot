@@ -1,0 +1,6 @@
+../Core/Inc/libdw1000/src/libdw1000Spi.c:25:6:dwSpiRead	48	static
+../Core/Inc/libdw1000/src/libdw1000Spi.c:49:10:dwSpiRead16	40	static
+../Core/Inc/libdw1000/src/libdw1000Spi.c:55:10:dwSpiRead32	40	static
+../Core/Inc/libdw1000/src/libdw1000Spi.c:61:6:dwSpiWrite	48	static
+../Core/Inc/libdw1000/src/libdw1000Spi.c:86:6:dwSpiWrite8	32	static
+../Core/Inc/libdw1000/src/libdw1000Spi.c:91:6:dwSpiWrite32	32	static
