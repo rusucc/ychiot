@@ -57,7 +57,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define TRANSMITTER 1
+#define TRANSMITTER 0
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -156,16 +156,34 @@ void RX_Callback(dwDevice_t *dev) {
 	sprintf((char*) USB_TX_Buffer, "RX Complete %d \n\r\0", HAL_GetTick());
 	CDC_Transmit_FS((uint8_t*) USB_TX_Buffer, strlen(USB_TX_Buffer));
 }
+void receivedFailedCallback(dwDevice_t *dev){
+	sprintf((char*) USB_TX_Buffer, "RX Failed %d \n\r\0", HAL_GetTick());
+	CDC_Transmit_FS((uint8_t*) USB_TX_Buffer, strlen(USB_TX_Buffer));
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6, 1);
+}
+void receivedError(dwDevice_t *dev){
+	sprintf((char*) USB_TX_Buffer, "RX Error %d \n\r\0", HAL_GetTick());
+	CDC_Transmit_FS((uint8_t*) USB_TX_Buffer, strlen(USB_TX_Buffer));
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6, 1);
+}
 
+void DW1000_Error_Handler(dwDevice_t *dev) {
+	sprintf((char*) USB_TX_Buffer, "DW1000 Error %d \n\r\0", HAL_GetTick());
+	CDC_Transmit_FS((uint8_t*) USB_TX_Buffer, strlen(USB_TX_Buffer));
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6, 1);
+}
 #define MAC802154_HEADER_LENGTH 21
 //Data Transmit and Receive Functions:
 void send_Data_Over_UWB(char *data) {
 	uint8_t txPacket[255];
-	//TODO: Look up the maximum data for each package
-	strcpy(txPacket, data);
+	size_t dataLength = strlen(data);
+	
+	// Copy data to packet buffer
+	memcpy(txPacket, data, dataLength);
+	
 	dwNewTransmit(dwm);
 	dwSetDefaults(dwm);
-	dwSetData(dwm, (uint8_t*) &txPacket, MAC802154_HEADER_LENGTH + 2);
+	dwSetData(dwm, txPacket, dataLength);
 	dwStartTransmit(dwm);
 }
 
@@ -221,9 +239,8 @@ int main(void)
 
 	dwInit(dwm, &dw_ops);
 
-	//dwOpsInit(dwm);
-	//Looks like it was used in another project in order to enable Interrupts on STM32
-	//Link: https://github.com/bitcraze/lps-node-firmware/blob/6a85c68c3de8f35a218d083125346241bd2a7a13/src/dwOps.c#L40
+	// Enable NVIC interrupt for DW1000
+	dwOpsInit(dwm);
 
 	uint8_t result = dwConfigure(dwm); // Configure the dw1000 chip
 
@@ -247,6 +264,8 @@ int main(void)
 
 	dwAttachSentHandler(dwm, TX_Callback);
 	dwAttachReceivedHandler(dwm, RX_Callback);
+	dwAttachErrorHandler(dwm, DW1000_Error_Handler);
+	dwAttachReceiveFailedHandler(dwm, receivedFailedCallback);
 
 	dwNewConfiguration(dwm);
 	dwSetDefaults(dwm);
@@ -256,6 +275,11 @@ int main(void)
 	dwSetPreambleCode(dwm, PREAMBLE_CODE_64MHZ_9);
 
 	dwCommitConfiguration(dwm);
+
+	// Enable DW1000 interrupts for receive operations
+	dwInterruptOnReceived(dwm, true);
+	dwInterruptOnReceiveFailed(dwm, true);
+	dwInterruptOnReceiveTimeout(dwm, true);
 
   /* USER CODE END 2 */
 
@@ -275,10 +299,19 @@ int main(void)
 			send_Data_Over_UWB(mesaj);
 			HAL_Delay(100);
 		} else {
-			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, GPIO_PIN_SET);
-			dwNewReceive(dwm);
-			dwSetDefaults(dwm);
-			dwStartReceive(dwm);
+			HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_7);
+			
+			// Only start new receive if not already receiving
+			if (!dwIsReceiveDone(dwm) && !dwIsReceiveFailed(dwm)) {
+				// Already receiving, just wait
+				HAL_Delay(10);
+			} else {
+				// Start new receive cycle
+				dwNewReceive(dwm);
+				dwSetDefaults(dwm);
+				dwStartReceive(dwm);
+				HAL_Delay(10);
+			}
 		}
 	}
   /* USER CODE END 3 */
