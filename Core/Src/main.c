@@ -22,31 +22,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "usbd_cdc_if.h"
-/*
-
- For USB Virtual COM Port:
- -Link for driver (Windows): https://www.st.com/en/development-tools/stsw-stm32102.html
- -For Serial use Putty: https://www.putty.org/
-
- */
-#include "libdw1000/inc/libdw1000.h"
-/*
-
- Open Source library in C for dw1000
- More details:https://github.com/bitcraze/libdw1000
-
- Also STM32CubeIde will want to have an include path to the library /inc/:
-
-
- Project
- |-Properties
- |--C/C++ Build
- |---Settings
- |----Compiler
- |-----Include Paths
- |------Add /inc/ using GUI
- */
+#include "user_functions.h"
 
 /* USER CODE END Includes */
 
@@ -57,7 +33,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define TRANSMITTER 0
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -85,102 +61,6 @@ static void MX_USART1_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-/* USER CODE BEGIN 0 */
-
-//USB send buffer, write to this using sprintf((char *)USB_TX_Buffer,"...\r\n"); and call CDC_Transmit_FS((uint8_t *)USB_TX_Buffer, sizeof(USB_TX_Buffer)); after
-char USB_TX_Buffer[255] = "\0";
-#define SPI_Transmit_Timeout  100
-//Timeout for transmission, in ms
-
-void spiRead(dwDevice_t *dev, const void *header, size_t headerLength,
-		void *data, size_t dataLength) {
-	//Function for SPI_Read for decawave device, member of dw_ops .spiRead field
-	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, 0);//CS Low
-
-	HAL_SPI_Transmit(&hspi1, (uint8_t*) header, headerLength,
-	SPI_Transmit_Timeout);
-
-	HAL_SPI_Receive(&hspi1, (uint8_t*) data, dataLength, SPI_Transmit_Timeout);
-
-	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, 1);//CS High
-	//Led OFF
-}
-
-void spiWrite(dwDevice_t *dev, const void *header, size_t headerLength,
-		const void *data, size_t dataLength) {
-	//Function for SPI_Write for decawave device, member of dw_ops .spiWrite field
-	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, 0);//CS Low
-
-	HAL_SPI_Transmit(&hspi1, (uint8_t*) header, headerLength,
-	SPI_Transmit_Timeout);
-
-	HAL_SPI_Transmit(&hspi1, (uint8_t*) data, dataLength, SPI_Transmit_Timeout);
-
-	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, 1);//CS High
-}
-
-void spiSetSpeed(dwDevice_t *dev, dwSpiSpeed_t speed) {
-// Needs to restart SPI using HAL, future improvement
-}
-void delayms(dwDevice_t *dev, unsigned int delay) {
-	HAL_Delay(delay);
-}
-
-void reset(dwDevice_t *dev) {
-	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_SET);
-	HAL_Delay(10);
-	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);
-	//Open drain output, must not be driven High externally
-	//See: DW1000 datasheet, page 8
-//Hardware RST pin
-}
-dwDevice_t dwm_device;
-dwDevice_t *dwm = &dwm_device;
-
-dwOps_t dw_ops = { .spiRead = spiRead, .spiWrite = spiWrite, .spiSetSpeed =
-		spiSetSpeed, .delayms = delayms, .reset = reset };
-
-//RX and TX callbacks
-void TX_Callback(dwDevice_t *dev) {
-	sprintf((char*) USB_TX_Buffer, "TX Complete %d \n\r\0", HAL_GetTick());
-	CDC_Transmit_FS((uint8_t*) USB_TX_Buffer, strlen(USB_TX_Buffer));
-}
-void RX_Callback(dwDevice_t *dev) {
-	HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_7);
-	HAL_Delay(100);
-	sprintf((char*) USB_TX_Buffer, "RX Complete %d \n\r\0", HAL_GetTick());
-	CDC_Transmit_FS((uint8_t*) USB_TX_Buffer, strlen(USB_TX_Buffer));
-}
-void receivedFailedCallback(dwDevice_t *dev) {
-	sprintf((char*) USB_TX_Buffer, "RX Failed %d \n\r\0", HAL_GetTick());
-	CDC_Transmit_FS((uint8_t*) USB_TX_Buffer, strlen(USB_TX_Buffer));
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6, 1);
-}
-void receivedError(dwDevice_t *dev) {
-	sprintf((char*) USB_TX_Buffer, "RX Error %d \n\r\0", HAL_GetTick());
-	CDC_Transmit_FS((uint8_t*) USB_TX_Buffer, strlen(USB_TX_Buffer));
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6, 1);
-}
-
-void DW1000_Error_Handler(dwDevice_t *dev) {
-	sprintf((char*) USB_TX_Buffer, "DW1000 Error %d \n\r\0", HAL_GetTick());
-	CDC_Transmit_FS((uint8_t*) USB_TX_Buffer, strlen(USB_TX_Buffer));
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6, 1);
-}
-#define MAC802154_HEADER_LENGTH 21
-//Data Transmit and Receive Functions:
-void send_Data_Over_UWB(char *data) {
-	uint8_t txPacket[255];
-	size_t dataLength = strlen(data);
-
-	// Copy data to packet buffer
-	memcpy(txPacket, data, dataLength);
-
-	dwNewTransmit(dwm);
-	dwSetDefaults(dwm);
-	dwSetData(dwm, txPacket, dataLength);
-	dwStartTransmit(dwm);
-}
 
 /* USER CODE END 0 */
 
@@ -216,92 +96,18 @@ int main(void) {
 	MX_USB_DEVICE_Init();
 	MX_USART1_UART_Init();
 	/* USER CODE BEGIN 2 */
-
-	sprintf((char*) USB_TX_Buffer, "Starting test \n\r\0");
-	CDC_Transmit_FS((uint8_t*) USB_TX_Buffer, strlen(USB_TX_Buffer));
-	//Send over USB the start of program after 1s
-//	for (int i = 0; i < 700; i++) {
-//		HAL_Delay(5);
-//		sprintf((char*) USB_TX_Buffer, "Waiting %d \n\r\0", i);
-//		CDC_Transmit_FS((uint8_t*) USB_TX_Buffer, strlen(USB_TX_Buffer));
-//	}
-
-	sprintf((char*) USB_TX_Buffer, "Test:Init for DW1000 \n\r\0");
-	CDC_Transmit_FS((uint8_t*) USB_TX_Buffer, strlen(USB_TX_Buffer));
-	HAL_Delay(1000);
-	//Initialize Decawave
-
-	dwInit(dwm, &dw_ops);
-
-	// Enable NVIC interrupt for DW1000
-	dwOpsInit(dwm);
-
-	uint8_t result = dwConfigure(dwm); // Configure the dw1000 chip
-
-	if (result == 0) {
-		sprintf((char*) USB_TX_Buffer, "Ok \n\r\0");
-		CDC_Transmit_FS((uint8_t*) USB_TX_Buffer, strlen(USB_TX_Buffer));
-		dwEnableAllLeds(dwm);
-	} else {
-		sprintf((char*) USB_TX_Buffer, "[ERROR]: %s\n\r\0", dwStrError(result));
-		CDC_Transmit_FS((uint8_t*) USB_TX_Buffer, strlen(USB_TX_Buffer));
-	}
-	//Decawave config end
-
-	sprintf((char*) USB_TX_Buffer, "Config End \n\r\0");
-	CDC_Transmit_FS((uint8_t*) USB_TX_Buffer, strlen(USB_TX_Buffer));
-	HAL_Delay(1000);
-
-	//Continue with config:
-	dwTime_t delay = { .full = 0 };
-	dwSetAntenaDelay(dwm, delay);
-
-	dwAttachSentHandler(dwm, TX_Callback);
-	dwAttachReceivedHandler(dwm, RX_Callback);
-	dwAttachErrorHandler(dwm, DW1000_Error_Handler);
-	dwAttachReceiveFailedHandler(dwm, receivedFailedCallback);
-
-	dwNewConfiguration(dwm);
-	dwSetDefaults(dwm);
-
-	dwEnableMode(dwm, MODE_SHORTDATA_FAST_ACCURACY);
-	dwSetChannel(dwm, CHANNEL_2);
-	dwSetPreambleCode(dwm, PREAMBLE_CODE_64MHZ_9);
-
-	dwCommitConfiguration(dwm);
-
-	// Enable DW1000 interrupts for receive operations
-	dwInterruptOnReceived(dwm, true);
-	dwInterruptOnReceiveFailed(dwm, true);
-	dwInterruptOnReceiveTimeout(dwm, true);
-
+	setup();
 	/* USER CODE END 2 */
 
 	/* Infinite loop */
 	/* USER CODE BEGIN WHILE */
-	int i = 0;
 	while (1) {
 		/* USER CODE END WHILE */
 
 		/* USER CODE BEGIN 3 */
-
-		if (TRANSMITTER == 1) {
-			i++;
-			sprintf((char*) USB_TX_Buffer, "Cycle no %d \n\r\0", i);
-			CDC_Transmit_FS((uint8_t*) USB_TX_Buffer, strlen(USB_TX_Buffer));
-
-			char mesaj[] = "Hello UWB World! \n\r\0";
-			send_Data_Over_UWB(mesaj);
-			HAL_Delay(100);
-		} else {
-			dwNewReceive(dwm);
-			dwSetDefaults(dwm);
-			dwReceivePermanently(dwm, 1);
-			dwStartReceive(dwm);
-			HAL_Delay(10);
-		}
+		loop();
+		/* USER CODE END 3 */
 	}
-	/* USER CODE END 3 */
 }
 
 /**
@@ -478,27 +284,7 @@ static void MX_GPIO_Init(void) {
 }
 
 /* USER CODE BEGIN 4 */
-//External interrupt handle
-#define DWM_IRQn EXTI9_5_IRQn
-#define DWM_IRQ_PIN GPIO_PIN_5
-static int checkIrq() {
-	return HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_5);
-}
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
-	if (GPIO_Pin == DWM_IRQ_PIN) // If The INT Source Is EXTI Line9 (A9 Pin)
-	{ //GPIO_PIN_5- PB5
-		do {
-			dwHandleInterrupt(dwm);
-		} while (checkIrq() != 0);
-		HAL_NVIC_ClearPendingIRQ(DWM_IRQn);
-	}
-}
 
-void dwOpsInit(dwDevice_t *device) {
-	//dev = device;
-
-	NVIC_EnableIRQ(DWM_IRQn);
-}
 /* USER CODE END 4 */
 
 /**
